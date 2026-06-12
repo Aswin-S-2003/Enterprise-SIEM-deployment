@@ -1,36 +1,65 @@
-# Wazuh SIEM and Suricata NIDS Lab Deployment
+# Enterprise SIEM & NIDS Home Lab: Wazuh & Suricata Deployment
 
 ## Project Overview
-I built this home lab to get hands-on experience deploying and configuring a Security Information and Event Management (SIEM) system across a multi-OS environment. My main objective was to set up Wazuh as the central manager, integrate Suricata for network intrusion detection, and successfully aggregate simulated attacks on a single dashboard.
+The objective of this project was to architect and deploy a centralized Security Information and Event Management (SIEM) pipeline capable of ingesting, correlating, and analyzing telemetry from a multi-OS environment. By integrating Wazuh with Suricata, this lab demonstrates practical skills in host-based intrusion detection (HIDS), network-based intrusion detection (NIDS), log aggregation, and alert triage.
 
-## Environment Setup
-* **SIEM Manager:** Wazuh (Deployed locally via Docker)
-* **Windows 11 Host:** Configured the Wazuh agent for native OS log collection and authentication monitoring.
-* **Kali Linux VM:** Configured the Wazuh agent for Linux system logging and integrated Suricata for network traffic analysis.
-* **Tools:** VirtualBox, Docker Compose, Windows Command Line, Linux Terminal.
+## Logical Architecture
+- SIEM Manager: Wazuh 4.x (Deployed locally via Docker Compose)
+- Windows 11 Endpoint: Wazuh Agent installed for native OS log collection, Sysmon integration, and authentication monitoring.
+- Kali Linux Endpoint (VirtualBox): Wazuh Agent installed for Linux system logging, coupled with a local Suricata instance for network traffic analysis.
 
-## Execution and Validation
-After provisioning the Wazuh manager and enrolling both the Windows and Kali Linux agents, I verified that they were actively communicating and shipping logs to the central server. 
+---
 
-### 1. Agent Enrollment
-This dashboard shows both the Windows and Linux endpoints successfully connected and reporting in real-time.
+## Step-by-Step Execution Guide
 
-<img width="1900" height="730" alt="ACTIVE-AGENTS" src="https://github.com/user-attachments/assets/08cab149-d0df-4aa8-b1c7-30e96c6f6fc8" />
+### Phase 1: Provisioning the SIEM Manager
+To ensure an isolated and easily reproducible environment, the Wazuh manager was deployed utilizing Docker containers.
+1. Cloned the Wazuh Docker repository.
+2. Provisioned the cluster using the command: docker-compose up -d
+3. Verified container health and accessed the central Wazuh dashboard via the local interface.
+
+### Phase 2: Endpoint Agent Enrollment
+Agents were deployed to both endpoints to establish a secure, encrypted log-shipping pipeline to the central manager.
+
+- Windows Deployment: Deployed the MSI package via PowerShell, defining the Wazuh manager's IP address, and started the Wazuh service via services.msc.
+- Linux Deployment: Deployed the agent to the Kali virtual machine via APT package manager using the official repository keys, then enabled and started the wazuh-agent service.
+
+Result: Both agents successfully reported to the manager as active.
+
+<img width="1900" height="730" alt="ACTIVE-AGENTS" src="https://github.com/user-attachments/assets/e09638a0-4c43-4304-ae3e-d1705379a48c" />
 
 
-### 2. Attack Simulation
-To validate the monitoring pipeline, I executed controlled attacks against the Kali Linux endpoint. I ran a simulated network attack using a test NIDS signature, and forced failed login attempts to trigger host-level authentication warnings.
+### Phase 3: Suricata NIDS Integration
+To monitor network traffic for malicious signatures, Suricata was installed on the Kali Linux endpoint. 
+1. Installed Suricata using the package manager.
+2. Configured the Wazuh agent to read Suricata's eve.json output file by adding the file location and setting the log format to JSON inside the local ossec.conf configuration file.
+3. Restarted the Wazuh agent to apply the configuration.
 
-<img width="1920" height="922" alt="LINUX-ATTACKS" src="https://github.com/user-attachments/assets/9e770aa9-5bd7-4001-88f5-9efa88d2ab72" />
+### Phase 4: Attack Simulation & Telemetry Generation
+To validate the detection engineering pipeline, I executed controlled attacks against the Kali Linux endpoint.
+
+1. Network Intrusion Simulation:
+Triggered a known Suricata test rule by simulating a malicious network payload using a curl command against testmynids.org.
+Expected Output: Suricata flags the traffic and writes a GPL ATTACK_RESPONSE alert to eve.json, which the Wazuh agent immediately forwards to the manager.
+
+2. Host-Level Authentication Attack:
+Simulated a brute-force or unauthorized access attempt by forcing failed user impersonations using the command: su - invaliduser
+Expected Output: The Linux OS logs the failed authentication, and Wazuh parses the syslog to generate a Rule Level validation.
 
 
-### 3. Centralized Detections
-The Wazuh dashboard successfully caught, correlated, and mapped the malicious activity. In the logs below, you can see the high-severity Windows authentication failures (mapped to MITRE ATT&CK T1078 & T1531) alongside the network attack response from the Linux machine.
+<img width="1920" height="922" alt="LINUX-ATTACKS" src="https://github.com/user-attachments/assets/9bb84431-8aec-4c99-8e17-58bff7755463" />
 
-<img width="1892" height="852" alt="WAZUH-ALERTS" src="https://github.com/user-attachments/assets/2884c4ac-35c0-4c03-815e-425288d56d8b" />
+---
+
+## Alert Triage & Incident Response Validation
+The final phase of the lab involved pivoting to the Wazuh Threat Hunting dashboard to correlate the generated telemetry. 
+
+The SIEM successfully aggregated the multi-platform alerts. In the logs captured below, the system successfully tracked and mapped the simulated attacks to the MITRE ATT&CK Framework:
+- Captured high-severity Logon failure alerts from the Windows host (Mapped to Tactics: T1078 Valid Accounts & T1531 Account Access Removal).
+- Captured the GPL ATTACK_RESPONSE Suricata alert triggered by the malicious network interface traffic on the Kali Linux machine.
+
+<img width="1892" height="852" alt="WAZUH-ALERTS" src="https://github.com/user-attachments/assets/1fefe883-6977-4fed-97f8-09141b4783fe" />
 
 
-## Key Takeaways
-* Successfully aggregated logs from completely different operating systems into one centralized server.
-* Handled real-world SIEM tuning, including filtering noise and managing network IP drift during the lab setup.
-* Validated that security monitoring rules are functioning by manually simulating host and network attacks.
+## Conclusion
+This deployment validates the ability to engineer a comprehensive security monitoring environment. It successfully demonstrates the configuration of secure log pipelines, the integration of third-party NIDS sensors into a SIEM, and the practical application of the MITRE ATT&CK framework for analyzing multi-OS security events.
